@@ -134,6 +134,7 @@ for ts in range(nsteps):
             cbar_ax = fig.add_axes([0.9, 0.15, 0.03, 0.7])
             cbar_ax.set_xlabel('K', labelpad=20)
             fig.colorbar(im, cax=cbar_ax)
-            # plt.savefig("iter_{}.png".format(m), dpi=200)
-            plt.show()
-            # plt.clf()
+            plt.savefig("2d_iter_{}.png".format(m), dpi=200)
+            # plt.show()
+            plt.clf()
+
