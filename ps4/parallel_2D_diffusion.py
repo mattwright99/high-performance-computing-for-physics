@@ -9,11 +9,11 @@ size = comm.Get_size()
 
 # plate size, mm
 w = h = 20.48
-print(f"plate size: {w}x{h} mm")
+print(f"[P{rank}] plate size: {w}x{h} mm")
 
 # grid size
 nx = ny = 1024
-print(f"grid size:{nx}x{ny}")
+print(f"[P{rank}] grid size:{nx}x{ny}")
 
 # parallel params
 chunk = int(ny / size)  # parallelize along y axis
@@ -33,12 +33,12 @@ dx, dy = w/nx, h/ny
 
 # Thermal diffusivity of steel, mm^2/s
 D = 4.2
-print(f"thermal diffusivity: {D}")
+print(f"[P{rank}] thermal diffusivity: {D}")
 
 # time
 nsteps = 1001
 dt = dx**2 * dy**2 / (2 * D * (dx**2 + dy**2))
-print(f"dt: {dt}")
+print(f"[P{rank}] dt: {dt}")
 
 # plot
 # plot_ts = [0, 40, 90]
@@ -49,7 +49,7 @@ n_rows = top_pad + chunk + bottom_pad
 u = np.zeros((n_rows, nx))
 
 # Initialization - circle osf radius r centred at (cx,cy) (mm)
-T_hot = 300
+T_hot = 2000
 T_cool = 200
 r = 5.12
 cx = w / 2
@@ -59,9 +59,9 @@ for i in range(nx):
         p2 = (i*dx - cx)**2 + ((j+y_idx_offset)*dy - cy)**2
         if p2 < r**2:
             radius = np.sqrt(p2)
-            u[j, i] = T_cool * np.cos(4*radius)**4
+            u[j, i] = T_hot * np.cos(4*radius)**4
         else:
-            u[j, i] = T_hot
+            u[j, i] = T_cool
 
 
 def evolve_2d_diff_eq(u):
@@ -71,7 +71,7 @@ def evolve_2d_diff_eq(u):
         + (u[1:-1, 2:] - 2*u[1:-1, 1:-1] + u[1:-1, :-2])/dx**2)
     return u
 
-
+print(f'[P{rank}] Running for {nsteps} time steps...')
 # Main program
 for ts in range(nsteps):
     # communication
@@ -82,6 +82,9 @@ for ts in range(nsteps):
     if rank != size-1:
         comm.Send(u[-2], dest=rank+1, tag=12)
         comm.Recv(u[-1], source=rank+1, tag=11)
+
+    if ts % 100 == 0:
+        print(f'[P{rank}] evolving time step {ts}')
 
     u = evolve_2d_diff_eq(u)
 
@@ -99,6 +102,8 @@ for ts in range(nsteps):
             cbar_ax.set_xlabel('K', labelpad=20)
             fig.colorbar(im, cax=cbar_ax)
             plt.savefig("2d_iter_{}.png".format(ts), dpi=200)
+            print(f'saving step {ts}')
             # plt.show()
             plt.clf()
 
+#  !mpiexec -n 1 python parallel_2D_diffusion.py

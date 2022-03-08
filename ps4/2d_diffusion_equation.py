@@ -30,7 +30,7 @@ u0 = np.zeros((ny, nx))
 # u = u0.copy()
 
 # Initialization - circle of radius r centred at (cx,cy) (mm)
-Tcool, Thot = 200, 300
+Tcool, Thot = 200, 2000
 r, cx, cy = 5.12, w/2, h/2
 r2 = r**2
 for i in range(nx):
@@ -38,9 +38,9 @@ for i in range(nx):
         p2 = (i*dx-cx)**2 + (j*dy-cy)**2
         if p2 < r2:
             radius = np.sqrt(p2)
-            u0[j,i] = Tcool*np.cos(4*radius)**4
+            u0[j, i] = Thot * np.cos(4*radius)**4
         else:
-            u0[j,i] = Thot
+            u0[j, i] = Tcool
 
 
 def do_timestep(u0):
