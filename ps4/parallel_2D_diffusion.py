@@ -18,15 +18,7 @@ print(f"[P{rank}] grid size:{nx}x{ny}")
 # parallel params
 chunk = int(ny / size)  # parallelize along y axis
 
-top_pad = 1
-if rank == 0:
-    top_pad = 0
-
-bottom_pad = 1
-if rank == size-1:
-    bottom_pad = 0
-
-y_idx_offset = rank * chunk - top_pad
+y_idx_offset = rank * chunk
 
 # intervals in x-, y- directions, mm
 dx, dy = w/nx, h/ny
@@ -41,27 +33,26 @@ dt = dx**2 * dy**2 / (2 * D * (dx**2 + dy**2))
 print(f"[P{rank}] dt: {dt}")
 
 # plot
-# plot_ts = [0, 40, 90]
-plot_ts = [0, 100, 500, 1000]
+plot_ts = np.arange(0, 1001, 100, dtype=int)
 
 # array
-n_rows = top_pad + chunk + bottom_pad
-u = np.zeros((n_rows, nx))
+u = np.zeros((chunk+2, nx), dtype=np.float64)
 
 # Initialization - circle osf radius r centred at (cx,cy) (mm)
 T_hot = 2000
-T_cool = 200
+T_cool = 300
 r = 5.12
 cx = w / 2
 cy = h / 2
 for i in range(nx):
-    for j in range(top_pad, top_pad + chunk):
+    for j in range(chunk):
+        row_i = j + 1 # row index offset by 1 for padding
         p2 = (i*dx - cx)**2 + ((j+y_idx_offset)*dy - cy)**2
         if p2 < r**2:
             radius = np.sqrt(p2)
-            u[j, i] = T_hot * np.cos(4*radius)**4
+            u[row_i, i] = T_hot * np.cos(4*radius)**4
         else:
-            u[j, i] = T_cool
+            u[row_i, i] = T_cool
 
 
 def evolve_2d_diff_eq(u):
@@ -71,20 +62,19 @@ def evolve_2d_diff_eq(u):
         + (u[1:-1, 2:] - 2*u[1:-1, 1:-1] + u[1:-1, :-2])/dx**2)
     return u
 
+
 print(f'[P{rank}] Running for {nsteps} time steps...')
+
 # Main program
 for ts in range(nsteps):
     # communication
     if rank != 0:
         comm.Send(u[1], dest=rank-1, tag=11)
         comm.Recv(u[0], source=rank-1, tag=12)
-    
+        
     if rank != size-1:
-        comm.Send(u[-2], dest=rank+1, tag=12)
         comm.Recv(u[-1], source=rank+1, tag=11)
-
-    if ts % 100 == 0:
-        print(f'[P{rank}] evolving time step {ts}')
+        comm.Send(u[-2], dest=rank+1, tag=12)
 
     u = evolve_2d_diff_eq(u)
 
@@ -92,18 +82,23 @@ for ts in range(nsteps):
         full_u = None
         if rank == 0:
             full_u= np.empty((nx, ny))
-        comm.Gather(u[top_pad : top_pad + chunk], full_u, root=0)
+        comm.Gather(u[1 : chunk+1], full_u, root=0)
         
         if rank == 0:
-            fig = plt.figure(1)
-            im = plt.imshow(full_u, cmap=plt.get_cmap('hot'), vmin=T_cool,vmax=T_hot)
-            plt.title('{:.1f} ms'.format((ts+1)*dt*1000))
-            cbar_ax = fig.add_axes([0.9, 0.15, 0.03, 0.7])
+            np.save(f'2d_u_{ts}.npy', full_u)
+
+            fig = plt.figure(figsize=(6,6))
+            ax = fig.add_axes([0.2,.2,.6,.6])
+
+            im = ax.imshow(full_u, cmap=plt.get_cmap('hot'), vmin=T_cool,vmax=T_hot)
+            ax.set_title('{:.1f} ms'.format((ts+1)*dt*1000))
+            ax.set_xlabel('x (mm)')
+            ax.set_ylabel('y (mm)')
+
+            cbar_ax = fig.add_axes([0.85, 0.15, 0.03, 0.7])
             cbar_ax.set_xlabel('K', labelpad=20)
             fig.colorbar(im, cax=cbar_ax)
-            plt.savefig("2d_iter_{}.png".format(ts), dpi=200)
-            print(f'saving step {ts}')
-            # plt.show()
+            
+            plt.savefig("big_2d_iter_{}.png".format(ts), dpi=100)
             plt.clf()
 
-#  !mpiexec -n 1 python parallel_2D_diffusion.py
