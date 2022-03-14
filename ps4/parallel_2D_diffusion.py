@@ -1,4 +1,3 @@
-from importlib.metadata import PathDistribution
 import numpy as np
 import matplotlib.pyplot as plt
 from mpi4py import MPI
@@ -7,21 +6,16 @@ comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 size = comm.Get_size()
 
-# plate size, mm
-w = h = 20.48
+w = h = 20.48  # plate size, mm
 print(f"[P{rank}] plate size: {w}x{h} mm")
 
-# grid size
-nx = ny = 1024
+nx = ny = 1024  # grid size
+dx, dy = w/nx, h/ny
 print(f"[P{rank}] grid size:{nx}x{ny}")
 
-# parallel params
+# parallel parameters
 chunk = int(ny / size)  # parallelize along y axis
-
-y_idx_offset = rank * chunk
-
-# intervals in x-, y- directions, mm
-dx, dy = w/nx, h/ny
+y_idx_offset = rank * chunk  # offset for initialization
 
 # Thermal diffusivity of steel, mm^2/s
 D = 4.2
@@ -32,18 +26,16 @@ nsteps = 1001
 dt = dx**2 * dy**2 / (2 * D * (dx**2 + dy**2))
 print(f"[P{rank}] dt: {dt}")
 
-# plot
-plot_ts = np.arange(0, 1001, 100, dtype=int)
-
-# array
-u = np.zeros((chunk+2, nx), dtype=np.float64)
+# ploting times
+plot_ts = np.arange(0, nsteps, 100, dtype=int)
 
 # Initialization - circle osf radius r centred at (cx,cy) (mm)
+u = np.zeros((chunk+2, nx), dtype=np.float64)
+
 T_hot = 2000
 T_cool = 300
 r = 5.12
-cx = w / 2
-cy = h / 2
+cx, cy = w / 2, h / 2
 for i in range(nx):
     for j in range(chunk):
         row_i = j + 1 # row index offset by 1 for padding
@@ -62,10 +54,6 @@ def evolve_2d_diff_eq(u):
         + (u[1:-1, 2:] - 2*u[1:-1, 1:-1] + u[1:-1, :-2])/dx**2)
     return u
 
-
-print(f'[P{rank}] Running for {nsteps} time steps...')
-
-# Main program
 for ts in range(nsteps):
     # communication
     if rank != 0:
@@ -84,7 +72,7 @@ for ts in range(nsteps):
             full_u= np.empty((nx, ny))
         comm.Gather(u[1 : chunk+1], full_u, root=0)
         
-        if rank == 0:
+        if rank == 0:  # save and plot full U
             np.save(f'2d_u_{ts}.npy', full_u)
 
             fig = plt.figure(figsize=(6,6))
@@ -99,6 +87,6 @@ for ts in range(nsteps):
             cbar_ax.set_xlabel('K', labelpad=20)
             fig.colorbar(im, cax=cbar_ax)
             
-            plt.savefig("big_2d_iter_{}.png".format(ts), dpi=100)
+            # plt.savefig("./figs/2d_iter_{}.png".format(ts), dpi=100)
             plt.clf()
 

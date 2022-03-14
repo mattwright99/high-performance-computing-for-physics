@@ -9,9 +9,9 @@
 #SBATCH --mem=1g
 #SBATCH --time=00:05:00
 
+echo "Running $SLURM_NNODES nodes and $SLURM_NTASKS tasks..."
+
+
 cd /global/home/sa118039/high-performance-computing-for-phys/ps4  
-
-time mpirun -n $SLURM_NTASKS python ./parallel_2D_diffusion.py
-#time mpirun -n $SLURM_NTASKS python ./com_test.py
-
+time mpirun -n $SLURM_NTASKS python ./parallel_2D_diffusion.py $SLURM_NNODES $SLURM_NTASKS
 
