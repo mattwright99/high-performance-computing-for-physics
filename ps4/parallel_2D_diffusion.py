@@ -1,6 +1,10 @@
+import timeit
 import numpy as np
-import matplotlib.pyplot as plt
 from mpi4py import MPI
+import matplotlib.pyplot as plt
+
+PLOTTING = False  # flag for saving and plotting
+
 
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
@@ -26,11 +30,11 @@ nsteps = 1001
 dt = dx**2 * dy**2 / (2 * D * (dx**2 + dy**2))
 print(f"[P{rank}] dt: {dt}")
 
-# ploting times
-plot_ts = np.arange(0, nsteps, 100, dtype=int)
+plot_ts = np.arange(0, nsteps, 100, dtype=int)  # ploting times
 
 # Initialization - circle osf radius r centred at (cx,cy) (mm)
-u = np.zeros((chunk+2, nx), dtype=np.float64)
+t_start = timeit.default_timer()  # timer for parallelized code
+u = np.zeros((chunk+2, nx), dtype=np.float64)  # add 2 rows for communicated results
 
 T_hot = 2000
 T_cool = 300
@@ -54,8 +58,11 @@ def evolve_2d_diff_eq(u):
         + (u[1:-1, 2:] - 2*u[1:-1, 1:-1] + u[1:-1, :-2])/dx**2)
     return u
 
+t_comm = 0  # communication time (running sum)
+t_comp = 0  # computation time (running sum)
 for ts in range(nsteps):
     # communication
+    t_temp = timeit.default_timer()
     if rank != 0:
         comm.Send(u[1], dest=rank-1, tag=11)
         comm.Recv(u[0], source=rank-1, tag=12)
@@ -63,17 +70,21 @@ for ts in range(nsteps):
     if rank != size-1:
         comm.Recv(u[-1], source=rank+1, tag=11)
         comm.Send(u[-2], dest=rank+1, tag=12)
+    t_comm += timeit.default_timer() - t_temp
 
+    t_temp = timeit.default_timer()
     u = evolve_2d_diff_eq(u)
+    t_comp += timeit.default_timer() - t_temp
 
-    if ts in plot_ts:
+    if PLOTTING and ts in plot_ts:
+        # Communicate current total state to save snapshot
         full_u = None
         if rank == 0:
             full_u= np.empty((nx, ny))
         comm.Gather(u[1 : chunk+1], full_u, root=0)
         
         if rank == 0:  # save and plot full U
-            np.save(f'2d_u_{ts}.npy', full_u)
+            # np.save(f'2d_u_{ts}.npy', full_u)
 
             fig = plt.figure(figsize=(6,6))
             ax = fig.add_axes([0.2,.2,.6,.6])
@@ -89,4 +100,12 @@ for ts in range(nsteps):
             
             # plt.savefig("./figs/2d_iter_{}.png".format(ts), dpi=100)
             plt.clf()
+
+if rank == 0:  # only display time for root node
+    t_total = timeit.default_timer() - t_start
+    print(f'[P0]: TOTAL PARALLEL EXECUTION TIME: {t_total}')
+    print(f'[P0]: COMMUNICATION: {t_comm}')
+    print(f'[P0]: COMPUTATION: {t_comp}')
+
+
 
