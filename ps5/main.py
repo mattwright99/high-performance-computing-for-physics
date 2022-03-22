@@ -32,7 +32,7 @@ import scipy.constants as constants
 from matplotlib import cm, colors, rcParams
 import matplotlib.pyplot as plt
 
-rcParams['font.size'] = 10
+rcParams['font.size'] = 12
 rcParams['xtick.direction'] = 'in'
 rcParams['ytick.direction'] = 'in'
 rcParams['xtick.major.width'] = 1
@@ -43,7 +43,7 @@ rcParams['ytick.major.width'] = 1
 time_pause = 0.8  # specifies time a frame is displayed in animation
 save_plot = False  # 0 will not save graphics 
 cycle = 100  # for graph updates
-animate_flag = True  # specify whether or not to animate result
+animate_flag = False  # specify whether or not to animate result
 
 # initialize graph, fixed scaling for this first example
 def init_plt_1():
@@ -55,9 +55,9 @@ def init_plt_1():
     ax.set_ylabel('$E_x$')
     plt.pause(1)
 
-def init_plt_1c(dielectric_start, dielectric_end):
+def init_plt_1cd(dielectric_start, dielectric_end):
     plt.ylim((-0.7, 0.7))
-    plt.xlim((0, n600))    
+    plt.xlim((0, 600))    
     plt.axvline(x=dielectric_start,color='r')  # Vert line separator
     plt.axvline(x=dielectric_end,color='r')  # Vert line separator
     plt.grid('on')
@@ -76,8 +76,8 @@ def update_plot(i, cycle, Ex):
     if save_plot and i % 2*cycle == 0:
         plt.savefig("./figs/cycle_{}.pdf".format(i*100), dpi=800)
 
-def plot_1c(E_in, E_t, E_r):
-    # Plotting function for part 1 (c)
+def plot_1cd(E_in, E_t, E_r, L, epsilon):
+    # Plotting function for part 1 (c) and (d)
     fig = plt.figure(figsize=(8,6))
 
     # Plot electric fields over time
@@ -90,26 +90,46 @@ def plot_1c(E_in, E_t, E_r):
     ax1.set_xlabel(r'Time $(\Delta t)$')
     ax1.legend(loc='upper right')
 
-
     # Plot reflecred and transmitted in frequency domain
     ax2 = fig.add_axes([.2,.2,.6,.3])
+    # find frequency domain reps of E fields
     E_in_f = np.fft.rfft(E_in, norm='ortho')
     E_t_f = np.fft.rfft(E_t, norm='ortho')
     E_r_f = np.fft.rfft(E_r, norm='ortho')
-    freq = np.fft.rfftfreq(E_in.size, d=dt) / tera
-
+    freq = np.fft.rfftfreq(E_in.size, d=dt)
+    # get the analytical solution to compare
+    r, t = get_analytical_soln(L, epsilon, freq)
+    T_an = np.abs(t)**2
+    R_an = np.abs(r)**2
+    # compute transmisison and reflection coefficients vs freq
     T = np.abs(E_t_f/ E_in_f)**2
     R = np.abs(E_r_f)**2 / np.abs(E_in_f)**2
-    ax2.plot(freq, T, 'r', label='T')
-    ax2.plot(freq, R, 'b', label='R')
+    freq = freq / tera  # scale to THz
+    # plot all pretty
+    ax2.plot(freq, T, 'r', label=r'$T$')
+    ax2.plot(freq, T_an, 'r--', label=r'$T_{an}$')
+    ax2.plot(freq, R, 'b', label=r'$R$')
+    ax2.plot(freq, R_an, 'b--', label=r'$R_{an}$')
     ax2.plot(freq, T+R,'g' , label='Sum')
-    ax2.set_xlim(100, 300)
-    ax2.set_ylim(0, 1.2)
+    ax2.set_xlim(150, 250)
+    ax2.set_ylim(-0.05, 1.05)
     ax2.set_ylabel(r'$T, R$')
     ax2.set_xlabel(r'$\omega /2\pi$ (THz)')
     ax2.legend(loc='lower right')
-    
+
+    # plt.savefig("./figs/p1d.pdf", dpi=800)
     plt.show()
+
+def get_analytical_soln(L, eps, f):
+    # Analytical solutions for T and R using an assumed harmonic solution
+    k0 = 2*np.pi * f / c
+    n = np.sqrt(eps)
+    r1 = (1-n) / (1+n)
+    r2 = (n-1) / (n+1)
+
+    r = (r1 + r2 * np.exp(2j * k0 * L * n)) / (1 + r1*r2*np.exp(2j * k0 * L * n))
+    t = (1 + r1) * (1 + r2) * np.exp(1j * k0 * L * n) / (1 + r1*r2*np.exp(2j * k0 * L * n))
+    return r, t
 
 # Basic geometry and dielectric parameters
 n_xpts = 801  # number of FDTD cells in x
@@ -209,16 +229,14 @@ def b_FDTD_loop_1D(nsteps, cycle):
         if animate_flag:
             update_plot(i, cycle, Ex)
 
-def c_FDTD_loop_1D(nsteps, cycle):
-    epsilon = 9
-    L = 1e-6  # length of dielectric
+def c_FDTD_loop_1D(nsteps, cycle, L, epsilon):
     thickness_idx = int(L / dx)  # thickness in terms of x indices
     dielectric_start = 300  # initial position of dielectric
     permitivity_coeff = np.ones(n_xpts)
     permitivity_coeff[dielectric_start : dielectric_start + thickness_idx] = 1 / epsilon
 
     if animate_flag:
-        init_plt_1c(dielectric_start, dielectric_start+thickness_idx)
+        init_plt_1cd(dielectric_start, dielectric_start+thickness_idx)
 
     E_in = np.empty(n_steps+1)  # incident field over time
     E_t = np.empty(n_steps+1)  # transmitted field over time
@@ -275,11 +293,12 @@ if animate_flag:
 # a_FDTD_loop_1D(n_steps, cycle)
 # b_FDTD_loop_1D(n_steps, cycle)
 
-run = False
-n_steps = 30000
+run = True  # whether to run simulation or load saved results
+n_steps = 30000  # simulate for a long time to ensure signals die down
+epsilon = 9  # permitivity coefficient
+L = 1e-6  # length of dielectric
 if run:
-    # cycle = n_steps
-    E_in, E_t, E_r = c_FDTD_loop_1D(n_steps, cycle)
+    E_in, E_t, E_r = c_FDTD_loop_1D(n_steps, cycle, L, epsilon)
     np.save('E_in', E_in)
     np.save('E_t', E_t)
     np.save('E_r', E_r)
@@ -288,5 +307,6 @@ else:
     E_t = np.load('E_t.npy')
     E_r = np.load('E_r.npy')
 
-plot_1c(E_in, E_t, E_r)
+plot_1cd(E_in, E_t, E_r, L, epsilon)
+
 
