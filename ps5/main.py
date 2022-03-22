@@ -44,6 +44,16 @@ time_pause = 0.8  # specifies time a frame is displayed in animation
 save_plot = False  # 0 will not save graphics 
 cycle = 100  # for graph updates
 
+# initialize graph, fixed scaling for this first example
+def init_plt1():
+    plt.ylim((-0.7, 0.7))
+    plt.xlim((0, n_xpts-1))    
+    plt.axvline(x=n_xpts//2,color='r')  # Vert line separator
+    plt.grid('on')
+    ax.set_xlabel('Grid Cells ($z$)')
+    ax.set_ylabel('$E_x$')
+    plt.pause(1)
+
 def update_plot(i, cycle, im, Ex):
     if i % cycle != 0:
         return
@@ -83,16 +93,14 @@ if ppw <= 15:
 # Pulse function
 pulse_fn = lambda t: -np.exp(-0.5*(t-t0)**2/spread**2)*(np.cos(t*w_scale))
 
-# an array for spatial points (without first and last points)
-xs = np.arange(1, n_xpts-1)
-
-def FDTD_loop_1D(nsteps, cycle):
+# TODO: obtain numerical reflection of ABC
+def a_FDTD_loop_1D(nsteps, cycle):
     # Keep track of previous 2 values of E at boundary for absorbing BC
     Ex_1 = {'n-1' : 0,  'n-2' : 0}
     Ex_end = {'n-1' : 0,  'n-2' : 0}
     
     # loop over all time steps
-    for i in range(nsteps+1): # time loop, from 0 to nsteps  
+    for i in range(nsteps+1):
         t = i-1  # iterative time dep pulse as source
         pulse = pulse_fn(t)
 
@@ -101,44 +109,61 @@ def FDTD_loop_1D(nsteps, cycle):
         Ex_1['n-1'] = Ex[1]
         Ex_end['n-2'] = Ex_end['n-1']
         Ex_end['n-1'] = Ex[-2]
-        
-        # update E
-        # for x in range (1,n_xpts-1):      
-        #     Ex[x] = Ex[x] + 0.5*(Hy[x-1]-Hy[x]) 
+
+        # Update E
         Ex[1:-1] = Ex[1:-1] + 0.5 * (Hy[0:-2] - Hy[1:-1])
-        Ex[isource] = Ex[isource] - pulse*0.5
+        Ex[isource] = Ex[isource] - 0.5 * pulse
 
         # Apply absorbing BCs
         Ex[0] = Ex_1['n-2']
         Ex[-1] = Ex_end['n-2']
                 
-        # update H - note the offset
-        # for x in range (0,n_xpts-1):         
-        #     Hy[x] = Hy[x] + 0.5*(Ex[x]-Ex[x+1])  
-        Hy[0:-1] = Hy[0:-1] + 0.5 * (Ex[0:-1] - Ex[1:])      
+        # Update H - note the offset
+        Hy[0:-1] = Hy[0:-1] + 0.5 * (Ex[0:-1] - Ex[1:])
 
-        # update graph every cycle - very simple animation
+        # Update graph every cycle
+        update_plot(i, cycle, im, Ex)
+
+def b_FDTD_loop_1D(nsteps, cycle):
+    # Keep track of previous 2 values of E at boundary for absorbing BC
+    Ex_1 = {'n-1' : 0,  'n-2' : 0}
+    Ex_end = {'n-1' : 0,  'n-2' : 0}
+    
+    # loop over all time steps
+    for i in range(nsteps+1):
+        t = i-1  # iterative time dep pulse as source
+        Ex_source = pulse_fn(t)
+        Hy_source = pulse_fn(t + 0.5)
+
+        # Update stored boundary points
+        Ex_1['n-2'] = Ex_1['n-1']
+        Ex_1['n-1'] = Ex[1]
+        Ex_end['n-2'] = Ex_end['n-1']
+        Ex_end['n-1'] = Ex[-2]
+
+        # Update E
+        Ex[1:-1] = Ex[1:-1] + 0.5 * (Hy[0:-2] - Hy[1:-1])
+        Ex[isource] = Ex[isource] - 0.5 * Hy_source
+
+        # Apply absorbing BCs
+        Ex[0] = Ex_1['n-2']
+        Ex[-1] = Ex_end['n-2']
+                
+        # Update H - note the offset
+        Hy[0:-1] = Hy[0:-1] + 0.5 * (Ex[0:-1] - Ex[1:])
+        Hy[isource - 1] = Hy[isource - 1] - 0.5 * Ex_source
+
+        # Update graph every cycle
         update_plot(i, cycle, im, Ex)
            
 
-
-# initialize graph, fixed scaling for this first example
-def init1():
-    plt.ylim((-0.7, 0.7))
-    plt.xlim((0, n_xpts-1))    
-    plt.axvline(x=n_xpts//2,color='r')  # Vert line separator
-    plt.grid('on')
-    ax.set_xlabel('Grid Cells ($z$)')
-    ax.set_ylabel('$E_x$')
-    plt.pause(1)
-
 #%%
 "Define first (only in this simple example) graph for updating Ex at varios times"
-lw = 2 # line thickness for graphs
 fig = plt.figure(figsize=(8,6))
 ax = fig.add_axes([.18, .18, .7, .7])
-[im] = ax.plot(xs,Ex[1:n_xpts-1],linewidth=lw)
-init1() # initialize, then we will just update the y data and title frame
+[im] = ax.plot(np.arange(1, n_xpts-1), Ex[1:n_xpts-1], linewidth=2)
+init_plt1()  # initialize, then we will just update the y data and title frame
 
 "Main FDTD: time steps = nsteps, cycle for very simple animation"
-FDTD_loop_1D(n_steps, cycle)
+# a_FDTD_loop_1D(n_steps, cycle)
+b_FDTD_loop_1D(n_steps, cycle)
