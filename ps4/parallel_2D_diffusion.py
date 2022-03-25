@@ -1,3 +1,29 @@
+# -*- coding: utf-8 -*-
+"""
+Parallelized 2D Heat Equation
+
+This file contain my simulation code for Problem Set 4 of ENPH 479.
+
+This script uses MPI to solve the 2D heat equation using parallel computing.
+Parallelization is done for both inititialization and the evolution of the system. To run
+the file on 4 processors, one needs to submit the command:
+```
+!mpiexec -n 4 python parallel_2D_diffusion.py
+```
+assuming they have ``mpi4py`` installed. It can also be run using a scheduler like SLURM by
+sibmitting a batch job using the ``mpi-job.sh`` shell script and the command:
+```
+sbatch mpi-job.sh
+```
+Alternatively, the speed-up of assiging more hardware to the problem can be tested by
+running the ``timing-job.sh`` shell script in your terminal.
+
+
+Created on Mon Mar 7
+
+@author: Matt Wright
+"""
+
 import timeit
 import numpy as np
 from mpi4py import MPI
