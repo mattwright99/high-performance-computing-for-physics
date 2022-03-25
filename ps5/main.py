@@ -43,7 +43,7 @@ rcParams['ytick.major.width'] = 1
 time_pause = 0.8  # specifies time a frame is displayed in animation
 save_plot = False  # 0 will not save graphics 
 cycle = 100  # for graph updates
-animate_flag = True  # specify whether or not to animate result
+animate_flag = False  # specify whether or not to animate result
 
 # initialize graph, fixed scaling for this first example
 def init_plt_1():
@@ -120,7 +120,7 @@ def plot_1cd(E_in, E_t, E_r, L, epsilon):
     # plt.savefig("./figs/p1d.pdf", dpi=800)
     plt.show()
 
-def plot_2b(E_in, E_t, E_r, L):
+def plot_2(E_in, E_t, E_r, L, epsilon_w, xlims=[0, 300], save_plt=False):
     # Plotting function for part 1 (c) and (d)
     fig = plt.figure(figsize=(8,6))
 
@@ -129,7 +129,7 @@ def plot_2b(E_in, E_t, E_r, L):
     ax1.plot(range(n_steps + 1), E_in, 'b-', label=r'$E_{in}$')
     ax1.plot(range(n_steps + 1), E_t, 'r-', label=r'$E_{t}$')
     ax1.plot(range(n_steps + 1), E_r, 'g-', label=r'$E_{r}$')
-    ax1.set_xlim(0, 1500)
+    ax1.set_xlim(0, 2000)
     ax1.set_ylabel(r'$E_x$')
     ax1.set_xlabel(r'Time $(\Delta t)$')
     ax1.legend(loc='upper right')
@@ -141,29 +141,33 @@ def plot_2b(E_in, E_t, E_r, L):
     E_t_f = np.fft.rfft(E_t, norm='ortho')
     E_r_f = np.fft.rfft(E_r, norm='ortho')
     freq = np.fft.rfftfreq(E_in.size, d=dt)
+    
     # get the analytical solution to compare
     omega = 2*np.pi * freq
-    epsilon = 1 - omega_p**2 / (omega**2 + 1j * omega * alpha)
+    epsilon = epsilon_w(omega)
     r, t = get_analytical_soln(L, epsilon, freq)
     T_an = np.abs(t)**2
     R_an = np.abs(r)**2
+    
     # compute transmisison and reflection coefficients vs freq
     T = np.abs(E_t_f/ E_in_f)**2
     R = np.abs(E_r_f)**2 / np.abs(E_in_f)**2
+    
     # plot all pretty
     freq = freq / tera  # scale to THz
-    ax2.plot(freq, T, 'r', label=r'$T$')
-    ax2.plot(freq, T_an, 'r--', label=r'$T_{an}$')
-    ax2.plot(freq, R, 'b', label=r'$R$')
-    ax2.plot(freq, R_an, 'b--', label=r'$R_{an}$')
+    ax2.plot(freq, T, 'r', label=r'$T$', linewidth=0.8)
+    ax2.plot(freq, T_an, 'r--', label=r'$T_{an}$', linewidth=2)
+    ax2.plot(freq, R, 'b', label=r'$R$', linewidth=0.8)
+    ax2.plot(freq, R_an, 'b--', label=r'$R_{an}$', linewidth=2)
     ax2.plot(freq, T+R,'g' , label='Sum')
-    ax2.set_xlim(0, 300)
+    ax2.set_xlim(*xlims)
     ax2.set_ylim(-0.05, 1.05)
     ax2.set_ylabel(r'$T, R$')
     ax2.set_xlabel(r'$\omega /2\pi$ (THz)')
     ax2.legend(loc='lower right')
 
-    # plt.savefig("./figs/p2b.pdf", dpi=800)
+    if save_plt:
+        plt.savefig(f"./figs/pNUM_{int(L*10**9)}nm.pdf", dpi=800)
     plt.show()
 
 
@@ -356,27 +360,21 @@ n_steps = 30000  # simulate for a long time to ensure signals die down
 epsilon = 9  # permitivity coefficient
 L = 1e-6  # length of dielectric
 check_ppw(np.sqrt(epsilon), freq_in, dx)
-if run:
-    E_in, E_t, E_r = c_FDTD_loop_1D(n_steps, cycle, L, epsilon)
-    np.save('E_in', E_in)
-    np.save('E_t', E_t)
-    np.save('E_r', E_r)
-else:
-    E_in = np.load('E_in.npy')
-    E_t = np.load('E_t.npy')
-    E_r = np.load('E_r.npy')
-
+# E_in, E_t, E_r = c_FDTD_loop_1D(n_steps, cycle, L, epsilon)
 # plot_1cd(E_in, E_t, E_r, L, epsilon)
 
 
-#%%  PART B
+#%%  QUESTION 2: Flux density, lossy fre-dependent mediums, Z-transform
 
-def q2a_FDTD_loop_1D(nsteps, cycle, L, epsilon):
+def flux_density_FDTD_loop_1D(nsteps, cycle, L, Sx_function):
+    """Question 2: Add ability to model dispersion models"""
+
     d_start = 300  # initial position of dielectric
     d_thickness = int(L / dx)  # thickness in terms of x indices
+    d_end = d_start + d_thickness
     
     if animate_flag:
-        init_plt_1cd(d_start, d_start+d_thickness)
+        init_plt_1cd(d_start, d_end)
 
     E_in = np.empty(n_steps+1)  # incident field over time
     E_t = np.empty(n_steps+1)  # transmitted field over time
@@ -389,6 +387,7 @@ def q2a_FDTD_loop_1D(nsteps, cycle, L, epsilon):
     Ex = np.zeros(n_xpts, dtype=np.float64)  # E array  
     Hy = np.zeros(n_xpts, dtype=np.float64)  # H array
     Dx = np.zeros(n_xpts, dtype=np.float64)  # D array
+    # S array for frequency dependent D (track previous 2)
     Sx_prev = {
         'n-1' : np.zeros(d_thickness, dtype=np.float64),
         'n-2' : np.zeros(d_thickness, dtype=np.float64)
@@ -397,8 +396,9 @@ def q2a_FDTD_loop_1D(nsteps, cycle, L, epsilon):
     for i in range(nsteps+1):
         t = i-1  # iterative time dep pulse as source
         E_pulse = pulse_fn(t)
-        H_pulse = pulse_fn(t + 0.5)
+        H_pulse = pulse_fn(t + 0.5)  # add dt/2 offset (in units of dt)
 
+        # Track indicent, transmitted, and reflected E
         E_in[i] = pulse_fn(t)
         E_t[i] = Ex[d_start + d_thickness + 10]
         E_r[i] = Ex[isource - 10]
@@ -409,7 +409,7 @@ def q2a_FDTD_loop_1D(nsteps, cycle, L, epsilon):
         Dx_end['n-2'] = Dx_end['n-1']
         Dx_end['n-1'] = Dx[-2]
 
-        # Update D
+        # Update D accoding to central differencing maxwell eqs
         Dx[1:-1] = Dx[1:-1] + 0.5 * (Hy[0:-2] - Hy[1:-1])
         Dx[isource] = Dx[isource] - 0.5 * H_pulse
 
@@ -418,17 +418,16 @@ def q2a_FDTD_loop_1D(nsteps, cycle, L, epsilon):
         Dx[-1] = Dx_end['n-2']
 
         # Update E
-        Sx = (1 + np.exp(-alpha * dt)) * Sx_prev['n-1'] \
-            - np.exp(-alpha*dt) * Sx_prev['n-2'] \
-            + dt * omega_p**2 / alpha * (1 - np.exp(-alpha * dt)) * Ex[d_start : d_start + d_thickness]
+        Sx = Sx_function(Sx_prev, Ex[d_start:d_end])  # compute freq-dependent flux density (use prev Ex)
         
-        Ex = 1 * Dx  # n=1 outside of the dielecrix
-        Ex[d_start : d_start + d_thickness] = Dx[d_start : d_start + d_thickness] - Sx  # Drude dispersion model
+        Ex = 1 * Dx  # n=1 outside of the dielectric
+        Ex[d_start : d_end] = Dx[d_start : d_end] - Sx  # subract dielectric component
+        
         # update previous two S values for next iteration
         Sx_prev['n-2'] = Sx_prev['n-1']
         Sx_prev['n-1'] = Sx
 
-        # Update H - note the offset
+        # Update H - note the offset relative to E&D
         Hy[0:-1] = Hy[0:-1] + 0.5 * (Ex[0:-1] - Ex[1:])
         Hy[isource - 1] = Hy[isource - 1] - 0.5 * E_pulse
 
@@ -439,28 +438,65 @@ def q2a_FDTD_loop_1D(nsteps, cycle, L, epsilon):
     return E_in, E_t, E_r
 
 
-omega_p = 1.26e15
-alpha = 1.4e14
-
+# Update pulse
 spread = 1 * fs/dt  # 1 fs for this example
 t0 = spread * 6
 # check_ppw(np.sqrt(epsilon), freq_in, dx)
 pulse_fn = lambda t: -np.exp(-0.5*(t-t0)**2/spread**2)*(np.cos(t*w_scale))  # Pulse function
 
-run = True  # whether to run simulation or load saved results
+#%% Question 2 (b)
+omega_p = 1.26e15
+alpha = 1.4e14
+
+def Sx_drude_fn(Sx_prev, Ex):
+    """Compute current Sx (a vector subracted from Dx that expresses frequency dependent
+    permitivity) according to the Drude dispersion model in the Z domain."""
+
+    Sx = (1 + np.exp(-alpha * dt)) * Sx_prev['n-1'] \
+        - np.exp(-alpha*dt) * Sx_prev['n-2'] \
+        + dt * omega_p**2 / alpha * (1 - np.exp(-alpha * dt)) * Ex
+    return Sx
+
+# Drude dielectric constant response funcion
+epsilon_D = lambda omega: 1 - omega_p**2 / (omega**2 + 1j * omega * alpha)
+
 n_steps = 30000  # simulate for a long time to ensure signals die down
-L = 500e-9
-if run:
-    if n_steps > 3000:
-        animate_flag = False
-    E_in, E_t, E_r = q2a_FDTD_loop_1D(n_steps, cycle, L, epsilon)
-    np.save('E_in', E_in)
-    np.save('E_t', E_t)
-    np.save('E_r', E_r)
-else:
-    E_in = np.load('E_in.npy')
-    E_t = np.load('E_t.npy')
-    E_r = np.load('E_r.npy')
+
+# L = 200e-9
+# E_in, E_t, E_r = flux_density_FDTD_loop_1D(n_steps, cycle, L, Sx_drude_fn)
+# plot_2(E_in, E_t, E_r, L, epsilon_D, xlims=[0, 300])
+
+# L = 800e-9
+# E_in, E_t, E_r = flux_density_FDTD_loop_1D(n_steps, cycle, L, Sx_drude_fn)
+# plot_2(E_in, E_t, E_r, L, epsilon_D, xlims=[100, 400])
+
+#%% Question 2 (c)
+
+alpha = 4*np.pi * tera
+omega_0 = 2*np.pi * 200 * tera
+f_0 = 0.05
+beta = np.sqrt(omega_0**2 - alpha**2)
+
+def Sx_lorentz_fn(Sx_prev, Ex):
+    """Compute current Sx (a vector subracted from Dx that expresses frequency dependent
+    permitivity) according to the Lorentz dispersion model in the Z domain"""
+
+    Sx = 2 * np.exp(-alpha * dt) * np.cos(beta * dt) * Sx_prev['n-1'] \
+        - np.exp(-2 * alpha * dt) * Sx_prev['n-2'] \
+        + dt * f_0 * (alpha**2/beta + beta) * np.exp(-alpha * dt) * np.sin(beta * dt) * Ex
+    return Sx
+
+# Lorentz dielectric constant response funcion
+epsilon_L = lambda omega: 1 + f_0 * omega_0**2 / (omega_0**2 - omega**2 - 2j * omega * alpha)
+
+n_steps = 30000  # simulate for a long time to ensure signals die down
+
+# L = 200e-9
+# E_in, E_t, E_r = flux_density_FDTD_loop_1D(n_steps, cycle, L, Sx_lorentz_fn)
+# plot_2(E_in, E_t, E_r, L, epsilon_L, xlims=[150, 250])
+
+# L = 800e-9
+# E_in, E_t, E_r = flux_density_FDTD_loop_1D(n_steps, cycle, L, Sx_lorentz_fn)
+# plot_2(E_in, E_t, E_r, L, epsilon_L, xlims=[150, 250])
 
 
-plot_2b(E_in, E_t, E_r, L)
