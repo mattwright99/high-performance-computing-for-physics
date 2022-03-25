@@ -11,5 +11,5 @@ The coures consists of 6 Problem Sets that apply different numerical analysis te
 <!-- - [Problem set 6](https://github.com/mattwright99/high-performance-computing-for-physics/tree/main/ps6): ** -->
 
 
-Huge thanks to [Professor Steven Hughes](httProblem set ://www.queensu.ca/physics/hughes-group/) and the TAs, Sofia and Zhimu, for an amazing course and the thoughtful design of the assignments.
+Huge thanks to [Professor Steven Hughes](https://www.queensu.ca/physics/hughes-group/) and the TAs, Sofia and Zhimu, for an amazing course and the thoughtful design of the assignments.
 
