@@ -22,7 +22,6 @@ from IPython import get_ipython
 get_ipython().run_line_magic('matplotlib', 'auto')
 """
 
-from pickle import FALSE
 import numpy as np
 import scipy.constants as constants
 # comment these if any problems - sets graphics to auto
@@ -32,7 +31,7 @@ import scipy.constants as constants
 from matplotlib import cm, colors, rcParams
 import matplotlib.pyplot as plt
 
-rcParams['font.size'] = 12
+rcParams['font.size'] = 15
 rcParams['xtick.direction'] = 'in'
 rcParams['ytick.direction'] = 'in'
 rcParams['xtick.major.width'] = 1
@@ -40,14 +39,14 @@ rcParams['ytick.major.width'] = 1
 
 
 # Plotting config
-time_pause = 0.8  # specifies time a frame is displayed in animation
-save_plot = False  # 0 will not save graphics 
+time_pause = 0.5  # specifies time a frame is displayed in animation
 cycle = 100  # for graph updates
 animate_flag = False  # specify whether or not to animate result
+save_plot = False  # False will not save graphics (must have animate_flag == True as well)
 
 # initialize graph, fixed scaling for this first example
-def init_plt_1():
-    plt.ylim((-0.8, 0.8))
+def init_plt_1(ybounds):
+    plt.ylim(*ybounds)
     plt.xlim((0, n_xpts-1))    
     plt.axvline(x=n_xpts//2,color='r')  # Vert line separator
     plt.grid('on')
@@ -56,25 +55,25 @@ def init_plt_1():
     plt.pause(1)
 
 def init_plt_1cd(d_start, dielectric_end):
-    plt.ylim((-0.8, 0.8))
-    plt.xlim((0, 600))    
-    plt.axvline(x=d_start,color='r')  # Vert line separator
-    plt.axvline(x=dielectric_end,color='r')  # Vert line separator
+    plt.ylim((-1, 1))
+    plt.xlim((0, 400))    
+    plt.axvline(x=d_start, color='r')  # Vert line separator
+    plt.axvline(x=dielectric_end, color='r')  # Vert line separator
     plt.grid('on')
     ax.set_xlabel('Grid Cells ($z$)')
     ax.set_ylabel('$E_x$')
     plt.pause(1)
 
-def update_plot(i, cycle, Ex):
+def update_plot(i, cycle, Ex, question_num):
     if i % cycle != 0:
         return
     im.set_ydata(Ex[1:n_xpts-1])
-    ax.set_title("frame time {}".format(i))
+    ax.set_title(f"Frame: {i}")
     plt.draw()
     plt.pause(time_pause) # sinsible pause to watch animation 
 
     if save_plot and i % 2*cycle == 0:
-        plt.savefig("./figs/cycle_{}.pdf".format(i*100), dpi=800)
+        plt.savefig(f"./figs/{question_num}_cycle_{i}.pdf", dpi=800)
 
 def plot_1cd(E_in, E_t, E_r, L, epsilon):
     # Plotting function for part 1 (c) and (d)
@@ -106,21 +105,23 @@ def plot_1cd(E_in, E_t, E_r, L, epsilon):
     R = np.abs(E_r_f)**2 / np.abs(E_in_f)**2
     freq = freq / tera  # scale to THz
     # plot all pretty
-    ax2.plot(freq, T, 'r', label=r'$T$')
-    ax2.plot(freq, T_an, 'r--', label=r'$T_{an}$')
-    ax2.plot(freq, R, 'b', label=r'$R$')
-    ax2.plot(freq, R_an, 'b--', label=r'$R_{an}$')
+    ax2.plot(freq, T, 'r', label=r'$T$', linewidth=0.8)
+    ax2.plot(freq, T_an, 'r--', label=r'$T_{an}$', linewidth=2)
+    ax2.plot(freq, R, 'b', label=r'$R$', linewidth=0.8)
+    ax2.plot(freq, R_an, 'b--', label=r'$R_{an}$', linewidth=2)
     ax2.plot(freq, T+R,'g' , label='Sum')
+
+
     ax2.set_xlim(150, 250)
     ax2.set_ylim(-0.05, 1.05)
     ax2.set_ylabel(r'$T, R$')
     ax2.set_xlabel(r'$\omega /2\pi$ (THz)')
     ax2.legend(loc='lower right')
 
-    # plt.savefig("./figs/p1d.pdf", dpi=800)
+    plt.savefig("./figs/p1cd.pdf", dpi=800)
     plt.show()
 
-def plot_2(E_in, E_t, E_r, L, epsilon_w, xlims=[0, 300], save_plt=False):
+def plot_2(E_in, E_t, E_r, L, epsilon_w, xlims=[0, 300], save_name=''):
     # Plotting function for part 1 (c) and (d)
     fig = plt.figure(figsize=(8,6))
 
@@ -166,8 +167,8 @@ def plot_2(E_in, E_t, E_r, L, epsilon_w, xlims=[0, 300], save_plt=False):
     ax2.set_xlabel(r'$\omega /2\pi$ (THz)')
     ax2.legend(loc='lower right')
 
-    if save_plt:
-        plt.savefig(f"./figs/pNUM_{int(L*10**9)}nm.pdf", dpi=800)
+    if save_name:
+        plt.savefig(f"./figs/{save_name}nm.pdf", dpi=800)
     plt.show()
 
 
@@ -197,8 +198,8 @@ def check_ppw(n, freq_in, dx):
     # Function checks that there are enough points per wavelength for a given material
     v = c / n  # speed of EM wave in medium
     lam =  2*np.pi * v / freq_in  # wavelength
-    ppw = lam // dx  # points per wavelength
-    if ppw <= 15:
+    ppw = lam / dx  # points per wavelength
+    if ppw <= 20:
         raise Exception(f'Points per wavelength should be > 15 but got {ppw}')
 
 isource = 200  # source position
@@ -207,14 +208,13 @@ t0 = spread * 6
 freq_in = 2*np.pi * 200 * tera  # incident (angular) frequency
 w_scale = freq_in * dt
 check_ppw(1, freq_in, dx)
-
 # Pulse function
 pulse_fn = lambda t: -np.exp(-0.5*(t-t0)**2/spread**2)*(np.cos(t*w_scale))
 
 # TODO: obtain numerical reflection of ABC
 def a_FDTD_loop_1D(nsteps, cycle):
     if animate_flag:
-        init_plt_1()
+        init_plt_1(ybounds=[-0.6, 0.5])
 
     # Keep track of previous 2 values of E at boundary for absorbing BC
     Ex_1 = {'n-1' : 0,  'n-2' : 0}
@@ -247,11 +247,11 @@ def a_FDTD_loop_1D(nsteps, cycle):
 
         # Update graph every cycle
         if animate_flag:
-            update_plot(i, cycle, Ex)
+            update_plot(i, cycle, Ex, 'p1a')
 
 def b_FDTD_loop_1D(nsteps, cycle):
     if animate_flag:
-        init_plt_1()
+        init_plt_1(ybounds=[-1, 0.8])
 
     # Keep track of previous 2 values of E at boundary for absorbing BC
     Ex_1 = {'n-1' : 0,  'n-2' : 0}
@@ -286,10 +286,10 @@ def b_FDTD_loop_1D(nsteps, cycle):
 
         # Update graph every cycle
         if animate_flag:
-            update_plot(i, cycle, Ex)
+            update_plot(i, cycle, Ex, 'p1b')
 
-def c_FDTD_loop_1D(nsteps, cycle, L, epsilon):
-    d_start = 300  # initial position of dielectric
+def cd_FDTD_loop_1D(nsteps, cycle, L, epsilon):
+    d_start = isource+100  # initial position of dielectric
     d_thickness = int(L / dx)  # thickness in terms of x indices
     permitivity_coeff = np.ones(n_xpts)
     permitivity_coeff[d_start : d_start + d_thickness] = 1 / epsilon
@@ -338,7 +338,7 @@ def c_FDTD_loop_1D(nsteps, cycle, L, epsilon):
 
         # Update graph every cycle
         if animate_flag:
-            update_plot(i, cycle, Ex)
+            update_plot(i, cycle, Ex, 'p1cd')
     
     return E_in, E_t, E_r
 
@@ -355,12 +355,14 @@ if animate_flag:
 # a_FDTD_loop_1D(n_steps, cycle)
 # b_FDTD_loop_1D(n_steps, cycle)
 
-run = False  # whether to run simulation or load saved results
+# Part (c) and (d)
+isource = 100
+n_xpts = 400
 n_steps = 30000  # simulate for a long time to ensure signals die down
 epsilon = 9  # permitivity coefficient
 L = 1e-6  # length of dielectric
 check_ppw(np.sqrt(epsilon), freq_in, dx)
-# E_in, E_t, E_r = c_FDTD_loop_1D(n_steps, cycle, L, epsilon)
+# E_in, E_t, E_r = cd_FDTD_loop_1D(n_steps, cycle, L, epsilon)
 # plot_1cd(E_in, E_t, E_r, L, epsilon)
 
 
@@ -462,13 +464,13 @@ epsilon_D = lambda omega: 1 - omega_p**2 / (omega**2 + 1j * omega * alpha)
 
 n_steps = 30000  # simulate for a long time to ensure signals die down
 
-# L = 200e-9
-# E_in, E_t, E_r = flux_density_FDTD_loop_1D(n_steps, cycle, L, Sx_drude_fn)
-# plot_2(E_in, E_t, E_r, L, epsilon_D, xlims=[0, 300])
+L = 200e-9
+E_in, E_t, E_r = flux_density_FDTD_loop_1D(n_steps, cycle, L, Sx_drude_fn)
+plot_2(E_in, E_t, E_r, L, epsilon_D, xlims=[0, 300], save_name='p2b_200')
 
-# L = 800e-9
-# E_in, E_t, E_r = flux_density_FDTD_loop_1D(n_steps, cycle, L, Sx_drude_fn)
-# plot_2(E_in, E_t, E_r, L, epsilon_D, xlims=[100, 400])
+L = 800e-9
+E_in, E_t, E_r = flux_density_FDTD_loop_1D(n_steps, cycle, L, Sx_drude_fn)
+plot_2(E_in, E_t, E_r, L, epsilon_D, xlims=[100, 400], save_name='p2b_800')
 
 #%% Question 2 (c)
 
@@ -491,12 +493,12 @@ epsilon_L = lambda omega: 1 + f_0 * omega_0**2 / (omega_0**2 - omega**2 - 2j * o
 
 n_steps = 30000  # simulate for a long time to ensure signals die down
 
-# L = 200e-9
-# E_in, E_t, E_r = flux_density_FDTD_loop_1D(n_steps, cycle, L, Sx_lorentz_fn)
-# plot_2(E_in, E_t, E_r, L, epsilon_L, xlims=[150, 250])
+L = 200e-9
+E_in, E_t, E_r = flux_density_FDTD_loop_1D(n_steps, cycle, L, Sx_lorentz_fn)
+plot_2(E_in, E_t, E_r, L, epsilon_L, xlims=[150, 250], save_name='p2c_200')
 
-# L = 800e-9
-# E_in, E_t, E_r = flux_density_FDTD_loop_1D(n_steps, cycle, L, Sx_lorentz_fn)
-# plot_2(E_in, E_t, E_r, L, epsilon_L, xlims=[150, 250])
+L = 800e-9
+E_in, E_t, E_r = flux_density_FDTD_loop_1D(n_steps, cycle, L, Sx_lorentz_fn)
+plot_2(E_in, E_t, E_r, L, epsilon_L, xlims=[150, 250], save_name='p2c_800')
 
 
