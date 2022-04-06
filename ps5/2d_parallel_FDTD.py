@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """
+ENPH 479 PS 5: Part 2 code: 2-dimensional parallel FDTD
 
-
-
-
+This file holds my code for a parallelized 2-dimensional Finite-Difference Time-Domain
+simulation using MPI.
 """
 
 import timeit
@@ -62,7 +62,7 @@ def graph(t, Ez, Ez_mon_time, pule_mon_time, save_name=''):
     plt.savefig(f"./{save_name}_{t}.pdf", dpi=800)
 
 # Basic Geometry and Dielectric Parameters
-n_xpts = n_ypts = 3008  # no of FDTD cells in x and y (dealing with a square region here)
+n_xpts = n_ypts = 1008  # no of FDTD cells in x and y (dealing with a square region here)
 nsteps = 1000 # total number of FDTD time steps
 
 # Parallelization
@@ -123,7 +123,7 @@ Hy = np.zeros(grid_shape, dtype=np.float64)
 def pulse_fn(t):
     return np.exp(-0.5*(t-t0)**2/spread**2)*(np.cos(t*freq_in*dt))
 
-@njit(fastmath=True, cache=True)
+@njit(fastmath=True)
 def DE_update(Dz, Hy, Hx, Ez, ga):
     for x in range(1, nx-1): 
         for y in range(1, ny-1):
@@ -131,7 +131,7 @@ def DE_update(Dz, Hy, Hx, Ez, ga):
             Ez[x,y] = ga[x-1,y] * Dz[x,y]  # offset to ga since it is not padded
     return Dz, Ez
 
-@njit(fastmath=True, cache=True)
+@njit(fastmath=True)
 def H_update(Hx, Hy, Ez):
     for x in range(nx-1):  # start from 0 for 1 process case - not used otherwise
         for y in range(ny-1): 
