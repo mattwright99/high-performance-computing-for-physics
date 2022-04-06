@@ -1,25 +1,30 @@
 # -*- coding: utf-8 -*-
 """
+ENPH 479 PS 5: Part 2 code: 2-dimensional FDTD
 
+This file holds my code for a 2-dimensional Finite-Difference Time-Domain simulation to
+solve Maxwell's equations. 
 
-
-
-
+We experiment with looping, slicing, and Numba to find the optimal approach to solve the
+problem.
 """
 
 import numpy as np
 from matplotlib import pyplot as plt
-from matplotlib import cm, colors, rcParams
 import scipy.constants as constants
 import timeit
 
 from numba import njit
 
-rcParams['font.size'] = 15
-rcParams['xtick.direction'] = 'in'
-rcParams['ytick.direction'] = 'in'
-rcParams['xtick.major.width'] = 1
-rcParams['ytick.major.width'] = 1
+# comment these if any problems - sets graphics to auto
+from IPython import get_ipython
+get_ipython().run_line_magic('matplotlib', 'auto')
+
+plt.rcParams['font.size'] = 15
+plt.rcParams['xtick.direction'] = 'in'
+plt.rcParams['ytick.direction'] = 'in'
+plt.rcParams['xtick.major.width'] = 1
+plt.rcParams['ytick.major.width'] = 1
 
 
 # For animation updates - will slow down the loop to see Ex frames better
@@ -81,6 +86,9 @@ def check_ppw(n, freq_in, dx):
 def pulse_fn(t):
     return np.exp(-0.5*(t-t0)**2/spread**2)*(np.cos(t*freq_in*dt))
 
+
+# ---------------- Definintion of update functions ----------------
+
 def DE_update_loop(Dz, Hy, Hx, Ez, ga):
     for x in range (1, n_xpts-1): 
         for y in range(1, n_ypts-1):
@@ -92,7 +100,6 @@ def DE_update_slice(Dz, Hy, Hx, Ez, ga):
     Dz[1:-1, 1:-1] =  Dz[1:-1, 1:-1] + 0.5 * (Hy[1:-1, 1:-1] - Hy[:-2, 1:-1] - Hx[1:-1, 1:-1] + Hx[1:-1, :-2]) 
     Ez[1:-1, 1:-1] =  ga[1:-1, 1:-1] * Dz[1:-1, 1:-1]
     return Dz, Ez
-
 
 def H_update_loop(Hx, Hy, Ez):
     for x in range(n_xpts-1): 
@@ -107,8 +114,6 @@ def H_update_slice(Hx, Hy, Ez):
     return Hx, Hy
 
 
-use_slicing = False
-use_jit = True
 # Main FDTD loop iterated over nsteps
 def FDTD_loop(nsteps, cycle, ga):
     if use_slicing:
@@ -149,7 +154,9 @@ def FDTD_loop(nsteps, cycle, ga):
             graph(t, Ez, f'p3a_eps-{eps_box}')
 
 
-
+# Booleans to determine how to solve the problem
+use_slicing = False
+use_jit = True
 
 # Basic Geometry and Dielectric Parameters
 n_xpts = n_ypts = 1000  # no of FDTD cells in x and y (dealing with a square region here)
@@ -189,12 +196,14 @@ ga[X1:X2, Y1:Y2] = 1 / eps_box
 xs = np.arange(n_xpts)  
 ys = np.arange(n_ypts)  
 
-
-
 #%% Initial Run
 
 printgraph_flag = True  # print graph to pdf (1)
 livegraph_flag = True  # update graphs on screen every cycle (1)
+
+# Booleans to determine how to solve the problem
+use_slicing = False
+use_jit = True
 
 # set figure for graphics output
 if livegraph_flag: 
