@@ -3,7 +3,6 @@
 
 
 """
-
 import numpy as np
 import matplotlib.pyplot as plt
 from numba import njit
@@ -55,17 +54,31 @@ def plot_1d_ising(n_steps, n_spins, E_arr, spin_arr, kT):
     ax1.set_title(f'Spin evolution with $k_BT$ = {kT}')
 
     # Plot energy over time
-    E_an = -n_spins * eps * np.tanh(eps / kT)  # analytical equilibrium energy
-
     ax2 = fig.add_axes([.2,.2,.6,.3])
+    E_an = -n_spins * eps * np.tanh(eps / kT)  # analytical equilibrium energy
     E_scale = 1 / (n_spins * eps)
     ax2.plot(np.arange(0, n_steps, 1/n_spins), E_arr*E_scale, 'b-', label=r'$E$')
     ax2.axhline(y=E_an*E_scale, c='r', label=r'$\langle E \rangle_{an}$')
     ax2.set_ylim(-1.1, 0)
-    ax2.set_xlim(0, n_steps)
     ax2.set_ylabel(r'Energy$/N\epsilon$')
     ax2.set_xlabel('Iteration/N')
     ax2.legend()
+
+    if animate:
+        # Quick and dirty animation of evolution for 50 frame
+        for t in range(0, n_steps, n_steps//25):
+            # Remake spin state plot
+            ax1.clear()
+            ax1.imshow(spin_arr[:(t+1)*n_spins].T, origin='lower', aspect='auto', vmin=-1, vmax=1)
+            ax1.set_xticks([])
+            ax1.set_ylabel('N Spins')
+            ax1.set_title(f'Spin Evolution: $k_BT$ = {kT}, Iteration = {t}N')
+            
+            # Expand energy limits
+            ax2.set_xlim(0, t+1)
+
+            plt.draw()
+            plt.pause(0.1)
 
     plt.show()
 
@@ -261,6 +274,12 @@ mu = 1  # permeability
 eps = 1  # (epsilon) dielectric constant, permitivity
 k_B = constants.Boltzmann  # Boltzman constant
 
+# Set to True if you want to animate the spin/energy evolution instead of just plotting
+# the final state
+animate = True
+if animate:
+    from IPython import get_ipython
+    get_ipython().run_line_magic('matplotlib', 'auto')
 
 #%% Question 1 (a) - Visualize solution for different temperatures
 
@@ -310,13 +329,14 @@ solution reaches equilibrium within 400N steps. Thus, to compute average equilib
 magnetization, and entropy, we will begin keeping track of the points after 400N steps.
 """)
 
+n_spins=50
 
 # Set iteration numbers
 n_eq = 400  # number of steps to reach equilibrium
 n_mc = 400  # number of Monte Carlo samples
 n_steps = n_eq + n_mc
 
-kT_vals = np.linspace(1e-3, 6, 200)  # temperatures to use
+kT_vals = np.linspace(1e-2, 6, 200)  # temperatures to use
 E_avg, M_avg, S_avg = ising_temp_sweep(kT_vals, n_eq, n_mc, n_spins, p0)
 
 kT_vals = kT_vals / eps  # scale for plotting
