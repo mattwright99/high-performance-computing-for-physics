@@ -33,7 +33,7 @@ def print_title(msg):
     print('\n' + msg)
 
 def plot_eq(x, arr, an_arr=None, ylabel='', xlabel=''):
-    """Plot a quantity and its analytical solution over x"""
+    """Plot a quantity at equilibrium and its analytical solution over x"""
 
     fig = plt.figure(figsize=(8,6))
 

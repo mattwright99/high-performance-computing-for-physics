@@ -1,7 +1,13 @@
 """
+ENPH 479 PS 6 -- Part 2 code: 2-dimensional Ising Model
 
+This file holds my code for a 2-dimensional Ising model simulation using the Metropolis
+Algorithm.
 
-
+Similar to the 1D script, the first set cell declares the functions required for the
+following experiments. We begin by visualizing the system's evolution at a few different
+temperatures. Then we execute on a larger grid. Finally, we analyze the equilibrium energy
+and magnetization as a function of temperature.
 """
 
 import numpy as np
@@ -158,8 +164,8 @@ def update_2d_spins(spins, E, M, N, kT, p):
 def efficient_ising_2d_loop(n_steps, n_spins, p0, kT):
     """Use the Metropolis Algorithm to evolve a 2D Ising model. This function can be
     Numba-ified and has no plotting capabilities. When compared to the `ising_2d_loop`
-    function using `ising_temp_sweep`, this function ran in _s while the other ran in
-    _s.
+    function using `ising_temp_sweep` and 30 spins, this function ran in 160 s while the
+    other ran in 257 s.
     
     Parameters
     ----------
@@ -193,7 +199,9 @@ def efficient_ising_2d_loop(n_steps, n_spins, p0, kT):
     return E_arr, M_arr
 
 def ising_2d_loop(n_steps, n_spins, p0, kT, snap_times=[], n_snaps=None, plotting=True):
-    """Use the Metropolis Algorithm to evolve a 2D Ising model.
+    """Use the Metropolis Algorithm to evolve a 2D Ising model. The function,
+    `efficient_ising_2d_loop` is equivalent but optimized for computational speed while
+    this function is meant for visualization.
     
     Parameters
     ----------
@@ -275,16 +283,16 @@ def ising_temp_sweep(kT_vals, n_eq, n_mc, n_spins, p0, ising_loop_fn):
 
     n_steps = n_eq + n_mc
     # Declare arrays to save expectation values
-    E_avg = []
-    M_avg = []
+    E_avg = np.empty(len(kT_vals))
+    M_avg = np.empty(len(kT_vals))
 
     # Run Ising solver for different temperatures
     ts = timeit.default_timer()
-    for kT in kT_vals:
+    for i, kT in enumerate(kT_vals):
         E_arr, M_arr = ising_loop_fn(n_steps, n_spins, p0, kT)
         # Compute average at equilibrium
-        E_avg.append(np.mean(E_arr[n_eq:]))
-        M_avg.append(np.mean(M_arr[n_eq:]))
+        E_avg[i] = np.mean(E_arr[n_eq:])
+        M_avg[i] = np.mean(M_arr[n_eq:])
     print(f'Time for simulation: {timeit.default_timer() - ts}')
     return E_avg, M_avg
 
@@ -323,16 +331,17 @@ ising_2d_loop(n_steps, n_spins, p0, kT, snap_times=snapshot_times, plotting=True
 
 print_title('Question 2 Equilibrium')
 
-n_spins = 30
+n_spins = 20
 n_eq = n_spins**2
 n_mc = n_spins**2
 
 kT_c = 2 / np.log(1 + np.sqrt(2))  # critical temperature
 
-kT_vals = np.linspace(1e-2, 3*kT_c, 200)
-E_avg, M_avg = ising_temp_sweep(kT_vals, n_eq, n_mc, n_spins, p0, ising_2d_loop)
-
+kT_vals = np.linspace(1e-2, 3*kT_c, 100)
 E_avg, M_avg = ising_temp_sweep(kT_vals, n_eq, n_mc, n_spins, p0, efficient_ising_2d_loop)
+
+## The commented line below runs the same operations as above but is slower for large-scale simulation
+# E_avg, M_avg = ising_temp_sweep(kT_vals, n_eq, n_mc, n_spins, p0, ising_2d_loop)
 
 # Scale quantities appropriately and plot
 E_scale = 1 / (n_spins**2 * eps)
