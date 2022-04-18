@@ -1,8 +1,14 @@
 """
+ENPH 479 PS 6 -- Part 1 code: 1-dimensional Ising Model
 
+This file holds my code for a 1-dimensional Ising model simulation using the Metropolis
+Algorithm.
 
-
+The first set cell declares the functions required for the following experiments. We begin
+by visualizing the system's evolution at a few different temperatures. Then we analyze the
+equilibrium energy, magnetization, and entropy as a function of temperature.
 """
+
 import numpy as np
 import matplotlib.pyplot as plt
 from numba import njit
